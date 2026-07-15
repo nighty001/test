@@ -17,7 +17,7 @@ lb config \
   --binary-image iso-hybrid \
   --debian-installer live \
   --debian-installer-gui false \
-  --bootappend-live "boot=live components quiet splash loglevel=3 systemd.show_status=false" \
+  --bootappend-live "boot=live components nomodeset" \
   --iso-application "N36 ESP32 Kiosk" \
   --iso-publisher "Local kiosk image"
 lb build
