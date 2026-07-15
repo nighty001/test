@@ -12,6 +12,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+      - name: Install image builder
+        run: |
+          apt-get update
+          apt-get install -y live-build debian-archive-keyring ca-certificates python3
       - name: Insert protected Wi-Fi password
         env:
           ESP32_WIFI_PASSWORD: ${{ secrets.ESP32_WIFI_PASSWORD }}
@@ -26,10 +30,6 @@ jobs:
           chmod +x config/hooks/live/0100-kiosk.hook.chroot
           chmod +x config/includes.chroot/usr/local/bin/kiosk-session
           chmod +x config/includes.chroot/usr/local/sbin/kiosk-power-button
-      - name: Install image builder
-        run: |
-          apt-get update
-          apt-get install -y live-build debian-archive-keyring ca-certificates
       - name: Build ISO
         run: ./build.sh
       - name: Upload flashable ISO
