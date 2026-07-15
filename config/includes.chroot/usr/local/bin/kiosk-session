@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+xset -dpms
+xset s off
+xset s noblank
+xhost +SI:localuser:root
+unclutter -idle 0.3 -root &
+openbox-session &
+while ! ip route get 192.168.4.1 >/dev/null 2>&1; do sleep 1; done
+rm -rf /run/kiosk-chromium
+install -d -m 0700 /run/kiosk-chromium
+printf '%s\n' view > /run/kiosk-page
+exec chromium \
+  --kiosk \
+  --no-first-run \
+  --disable-session-crashed-bubble \
+  --disable-infobars \
+  --disable-translate \
+  --disable-features=Translate,MediaRouter,OptimizationHints \
+  --disable-component-update \
+  --disk-cache-size=1 \
+  --user-data-dir=/run/kiosk-chromium \
+  --start-fullscreen \
+  http://192.168.4.1/view

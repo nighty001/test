@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+useradd -m -s /bin/bash kiosk
+passwd -l kiosk
+chmod 600 /etc/NetworkManager/system-connections/esp32.nmconnection
+chmod 755 /usr/local/bin/kiosk-session /usr/local/sbin/kiosk-power-button
+systemctl enable NetworkManager.service acpid.service kiosk.service
+systemctl set-default graphical.target

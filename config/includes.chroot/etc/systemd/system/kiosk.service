@@ -1,0 +1,20 @@
+[Unit]
+Description=Chromium kiosk
+After=network-manager.service acpid.service
+Wants=network-manager.service acpid.service
+
+[Service]
+User=kiosk
+PAMName=login
+Environment=HOME=/home/kiosk
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+Restart=always
+RestartSec=2
+ExecStartPre=/usr/bin/rm -rf /run/kiosk-chromium
+ExecStart=/usr/bin/xinit /usr/local/bin/kiosk-session -- :0 -nolisten tcp -nocursor vt1
+
+[Install]
+WantedBy=graphical.target
+

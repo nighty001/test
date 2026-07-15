@@ -1,0 +1,41 @@
+name: Build N36 kiosk ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Insert protected Wi-Fi password
+        env:
+          ESP32_WIFI_PASSWORD: ${{ secrets.ESP32_WIFI_PASSWORD }}
+        run: |
+          test -n "$ESP32_WIFI_PASSWORD"
+          python3 - <<'PY'
+          import os, pathlib
+          p = pathlib.Path('config/includes.chroot/etc/NetworkManager/system-connections/esp32.nmconnection')
+          p.write_text(p.read_text().replace('__ESP32_WIFI_PASSWORD__', os.environ['ESP32_WIFI_PASSWORD']))
+          PY
+          chmod +x build.sh
+          chmod +x config/hooks/live/0100-kiosk.hook.chroot
+          chmod +x config/includes.chroot/usr/local/bin/kiosk-session
+          chmod +x config/includes.chroot/usr/local/sbin/kiosk-power-button
+      - name: Install image builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y live-build
+      - name: Build ISO
+        run: sudo ./build.sh
+      - name: Upload flashable ISO
+        uses: actions/upload-artifact@v4
+        with:
+          name: n36-kiosk-amd64
+          path: |
+            output/n36-kiosk-amd64.iso
+            output/n36-kiosk-amd64.iso.sha256
+          if-no-files-found: error

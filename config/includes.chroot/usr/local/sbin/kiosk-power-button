@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+STATE=/run/kiosk-page
+URL=http://192.168.4.1/roundview
+if [ "$(cat "$STATE" 2>/dev/null || true)" = roundview ]; then
+  URL=http://192.168.4.1/view
+  printf '%s\n' view > "$STATE"
+else
+  printf '%s\n' roundview > "$STATE"
+fi
+env DISPLAY=:0 xdotool search --onlyvisible --class 'chromium' windowactivate --sync \
+  key --clearmodifiers ctrl+l type --delay 1 "$URL" key Return
