@@ -17,7 +17,7 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 Restart=always
 RestartSec=2
-ExecStartPre=/usr/bin/rm -rf /run/kiosk-chromium
+ExecStartPre=/usr/bin/find /run/kiosk-chromium -mindepth 1 -delete
 ExecStart=/usr/bin/xinit /usr/local/bin/kiosk-session -- :0 vt1 -keeptty -nolisten tcp -nocursor
 
 [Install]

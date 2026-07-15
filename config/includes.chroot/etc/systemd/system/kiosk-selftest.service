@@ -1,7 +1,6 @@
 [Unit]
 Description=One-shot kiosk boot self-test
 After=kiosk.service
-Requires=kiosk.service
 ConditionKernelCommandLine=kiosk.selftest=1
 
 [Service]

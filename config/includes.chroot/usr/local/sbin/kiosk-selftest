@@ -12,6 +12,9 @@ for second in $(seq 1 240); do
     ready=1
     break
   fi
+  if systemctl is-failed --quiet kiosk.service; then
+    break
+  fi
   sleep 1
 done
 

@@ -10,7 +10,7 @@ xhost +SI:localuser:root
 unclutter -idle 0.3 -root &
 openbox-session &
 udiskie --automount --no-notify --no-tray &
-rm -rf /run/kiosk-chromium
+find /run/kiosk-chromium -mindepth 1 -delete
 install -d -m 0700 /run/kiosk-chromium
 printf '%s\n' view > /run/kiosk-page
 chromium \
