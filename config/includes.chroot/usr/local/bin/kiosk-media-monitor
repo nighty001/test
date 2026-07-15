@@ -24,7 +24,8 @@ MEDIA_EXTENSIONS = {
 }
 MEDIA_ROOTS = (pathlib.Path("/media/kiosk"), pathlib.Path("/run/media/kiosk"))
 HEIF_EXTENSIONS = {".heic", ".heif"}
-HEIF_CACHE = pathlib.Path("/run/kiosk-heif")
+RUNTIME_DIR = pathlib.Path("/run/kiosk-chromium")
+HEIF_CACHE = RUNTIME_DIR / "heif"
 
 
 def browser_socket():
@@ -93,7 +94,7 @@ def media_files():
 
 
 def start_player(files):
-    playlist = pathlib.Path("/run/kiosk-media-playlist.txt")
+    playlist = RUNTIME_DIR / "media-playlist.txt"
     playlist.write_text("".join(f"{name}\n" for name in files), encoding="utf-8")
     return subprocess.Popen([
         "mpv", "--fullscreen", "--no-border", "--ontop", "--really-quiet",

@@ -6,7 +6,7 @@ fi
 xset -dpms
 xset s off
 xset s noblank
-xhost +SI:localuser:root
+xhost +SI:localuser:root +SI:localuser:kiosk
 unclutter -idle 0.3 -root &
 openbox-session &
 udiskie --automount --no-notify --no-tray &
@@ -51,5 +51,10 @@ BROWSER_PID=$!
   done
 ) &
 
-/usr/local/bin/kiosk-media-monitor &
+(
+  while true; do
+    /usr/local/bin/kiosk-media-monitor || true
+    sleep 2
+  done
+) &
 wait "$BROWSER_PID"

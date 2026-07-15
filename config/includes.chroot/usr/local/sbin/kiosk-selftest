@@ -57,6 +57,9 @@ if [ "$ready" -eq 1 ]; then
 fi
 
 report "KIOSK_SELFTEST_FAIL browser=$ready media=${media_ready:-0} switched=${switched:-0}"
+curl -fsS --max-time 2 http://127.0.0.1:9222/json 2>&1 | while IFS= read -r line; do
+  report "KIOSK_DIAG CDP $line"
+done
 for command in \
   'systemctl status kiosk.service --no-pager' \
   'journalctl -u kiosk.service -b --no-pager -n 100' \
