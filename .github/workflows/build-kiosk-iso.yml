@@ -8,14 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container: debian:12
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Install image builder
         run: |
-          apt-get update
-          apt-get install -y live-build debian-archive-keyring ca-certificates python3
+          sudo apt-get update
+          sudo apt-get install -y debootstrap debian-archive-keyring ca-certificates curl gnupg xorriso isolinux syslinux-common squashfs-tools
+          curl -fsSL https://deb.debian.org/debian/pool/main/l/live-build/live-build_20230502_all.deb -o /tmp/live-build.deb
+          echo 'a863905724e7b69d45066ebab113cb6de12a11984349847ad49f6151c10f017d  /tmp/live-build.deb' | sha256sum -c -
+          sudo dpkg -i /tmp/live-build.deb
+          curl -fsSL https://ftp-master.debian.org/keys/release-12.asc -o /tmp/release-12.asc
+          sudo gpg --batch --no-default-keyring --keyring /usr/share/keyrings/debian-archive-keyring.gpg --import /tmp/release-12.asc
       - name: Insert protected Wi-Fi password
         env:
           ESP32_WIFI_PASSWORD: ${{ secrets.ESP32_WIFI_PASSWORD }}
@@ -31,7 +35,7 @@ jobs:
           chmod +x config/includes.chroot/usr/local/bin/kiosk-session
           chmod +x config/includes.chroot/usr/local/sbin/kiosk-power-button
       - name: Build ISO
-        run: ./build.sh
+        run: sudo ./build.sh
       - name: Upload flashable ISO
         uses: actions/upload-artifact@v4
         with:
