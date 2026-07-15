@@ -5,9 +5,11 @@ network-manager
 wpasupplicant
 firmware-iwlwifi
 xserver-xorg-core
-xserver-xorg-video-intel
+xserver-xorg-legacy
+xserver-xorg-input-libinput
 xinit
 openbox
+dbus-x11
 chromium
 unclutter
 xdotool
@@ -24,3 +26,4 @@ udisks2
 udiskie
 ntfs-3g
 exfatprogs
+libheif-examples

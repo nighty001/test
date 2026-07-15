@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+  exec dbus-run-session -- "$0"
+fi
 xset -dpms
 xset s off
 xset s noblank
@@ -7,13 +10,15 @@ xhost +SI:localuser:root
 unclutter -idle 0.3 -root &
 openbox-session &
 udiskie --automount --no-notify --no-tray &
-while ! ip route get 192.168.4.1 >/dev/null 2>&1; do sleep 1; done
 rm -rf /run/kiosk-chromium
 install -d -m 0700 /run/kiosk-chromium
 printf '%s\n' view > /run/kiosk-page
 chromium \
   --kiosk \
   --no-first-run \
+  --no-default-browser-check \
+  --noerrdialogs \
+  --password-store=basic \
   --disable-session-crashed-bubble \
   --disable-infobars \
   --disable-translate \
@@ -28,5 +33,23 @@ chromium \
   --start-fullscreen \
   http://192.168.4.1/view &
 BROWSER_PID=$!
+
+# Chromium does not always retry an initial network error. Reload exactly once
+# when the ESP32 becomes reachable after startup or after a disconnect.
+(
+  ONLINE=0
+  while sleep 5; do
+    if curl -fsS --max-time 2 http://192.168.4.1/view >/dev/null 2>&1; then
+      if [ "$ONLINE" -eq 0 ]; then
+        xdotool search --onlyvisible --class 'chromium' windowactivate --sync \
+          key --clearmodifiers ctrl+r >/dev/null 2>&1 || true
+      fi
+      ONLINE=1
+    else
+      ONLINE=0
+    fi
+  done
+) &
+
 /usr/local/bin/kiosk-media-monitor &
 wait "$BROWSER_PID"

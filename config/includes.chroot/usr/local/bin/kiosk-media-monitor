@@ -14,7 +14,8 @@ import urllib.request
 from PIL import Image, ImageChops, ImageStat
 import websockets
 
-IDLE_SECONDS = 300
+CMDLINE = pathlib.Path("/proc/cmdline").read_text(encoding="utf-8", errors="ignore")
+IDLE_SECONDS = 10 if "kiosk.selftest=1" in CMDLINE else 300
 POLL_SECONDS = 5
 DIFFERENCE_THRESHOLD = 3.0
 MEDIA_EXTENSIONS = {
@@ -22,6 +23,8 @@ MEDIA_EXTENSIONS = {
     ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm", ".mpeg", ".mpg",
 }
 MEDIA_ROOTS = (pathlib.Path("/media/kiosk"), pathlib.Path("/run/media/kiosk"))
+HEIF_EXTENSIONS = {".heic", ".heif"}
+HEIF_CACHE = pathlib.Path("/run/kiosk-heif")
 
 
 def browser_socket():
@@ -50,6 +53,25 @@ def difference(first, second):
     return ImageStat.Stat(ImageChops.difference(first, second)).mean[0]
 
 
+def converted_heif(item):
+    try:
+        stat = item.stat()
+        identity = f"{item.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+        target = HEIF_CACHE / f"{hashlib.sha256(identity.encode()).hexdigest()}.jpg"
+        if not target.exists():
+            HEIF_CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
+            subprocess.run(
+                ["heif-convert", "-q", "85", str(item), str(target)],
+                check=True,
+                timeout=60,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        return str(target)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def media_files():
     found = []
     for root in MEDIA_ROOTS:
@@ -57,8 +79,14 @@ def media_files():
             continue
         for item in root.rglob("*"):
             try:
-                if item.is_file() and item.suffix.lower() in MEDIA_EXTENSIONS:
-                    found.append(str(item))
+                suffix = item.suffix.lower()
+                if item.is_file() and suffix in MEDIA_EXTENSIONS:
+                    if suffix in HEIF_EXTENSIONS:
+                        converted = converted_heif(item)
+                        if converted:
+                            found.append(converted)
+                    else:
+                        found.append(str(item))
             except OSError:
                 pass
     return sorted(found)

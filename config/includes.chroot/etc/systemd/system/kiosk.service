@@ -1,20 +1,24 @@
 [Unit]
 Description=Chromium kiosk
-After=network-manager.service acpid.service
+After=systemd-user-sessions.service network-manager.service acpid.service
 Wants=network-manager.service acpid.service
+Conflicts=getty@tty1.service
 
 [Service]
 User=kiosk
 PAMName=login
 Environment=HOME=/home/kiosk
 TTYPath=/dev/tty1
-StandardInput=tty
+StandardInput=tty-force
 StandardOutput=journal
+StandardError=journal
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
 Restart=always
 RestartSec=2
 ExecStartPre=/usr/bin/rm -rf /run/kiosk-chromium
-ExecStart=/usr/bin/xinit /usr/local/bin/kiosk-session -- :0 -nolisten tcp -nocursor vt1
+ExecStart=/usr/bin/xinit /usr/local/bin/kiosk-session -- :0 vt1 -keeptty -nolisten tcp -nocursor
 
 [Install]
 WantedBy=graphical.target
-

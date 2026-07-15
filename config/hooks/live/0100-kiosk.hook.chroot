@@ -1,8 +1,12 @@
 #!/bin/sh
 set -eu
-useradd -m -s /bin/bash kiosk
+for group in audio video input render plugdev netdev; do
+  groupadd -f "$group"
+done
+useradd -m -s /bin/bash -G audio,video,input,render,plugdev,netdev kiosk
 printf 'kiosk:kiosk\n' | chpasswd
 chmod 600 /etc/NetworkManager/system-connections/esp32.nmconnection
-chmod 755 /usr/local/bin/kiosk-session /usr/local/bin/kiosk-media-monitor /usr/local/sbin/kiosk-power-button
-systemctl enable NetworkManager.service acpid.service kiosk.service
+chmod 755 /usr/local/bin/kiosk-session /usr/local/bin/kiosk-media-monitor \
+  /usr/local/sbin/kiosk-power-button /usr/local/sbin/kiosk-selftest
+systemctl enable NetworkManager.service acpid.service kiosk.service kiosk-selftest.service
 systemctl set-default graphical.target

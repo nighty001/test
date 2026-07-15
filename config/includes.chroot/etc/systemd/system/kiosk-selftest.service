@@ -1,0 +1,12 @@
+[Unit]
+Description=One-shot kiosk boot self-test
+After=kiosk.service
+Requires=kiosk.service
+ConditionKernelCommandLine=kiosk.selftest=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kiosk-selftest
+
+[Install]
+WantedBy=graphical.target

@@ -14,7 +14,7 @@ jobs:
       - name: Install image builder
         run: |
           sudo apt-get update
-          sudo apt-get install -y debootstrap debian-archive-keyring ca-certificates curl gnupg xorriso isolinux syslinux-common squashfs-tools
+          sudo apt-get install -y debootstrap debian-archive-keyring ca-certificates curl gnupg xorriso isolinux syslinux-common squashfs-tools qemu-system-x86 dosfstools mtools
           curl -fsSL https://deb.debian.org/debian/pool/main/l/live-build/live-build_20230502_all.deb -o /tmp/live-build.deb
           echo 'a863905724e7b69d45066ebab113cb6de12a11984349847ad49f6151c10f017d  /tmp/live-build.deb' | sha256sum -c -
           sudo dpkg -i /tmp/live-build.deb
@@ -35,8 +35,45 @@ jobs:
           chmod +x config/includes.chroot/usr/local/bin/kiosk-session
           chmod +x config/includes.chroot/usr/local/bin/kiosk-media-monitor
           chmod +x config/includes.chroot/usr/local/sbin/kiosk-power-button
+          chmod +x config/includes.chroot/usr/local/sbin/kiosk-selftest
+      - name: Validate scripts
+        run: |
+          sh -n build.sh
+          sh -n config/hooks/live/0100-kiosk.hook.chroot
+          sh -n config/includes.chroot/usr/local/bin/kiosk-session
+          sh -n config/includes.chroot/usr/local/sbin/kiosk-power-button
+          sh -n config/includes.chroot/usr/local/sbin/kiosk-selftest
+          python3 -m py_compile config/includes.chroot/usr/local/bin/kiosk-media-monitor
       - name: Build ISO
         run: sudo ./build.sh
+      - name: Boot-test Xorg and Chromium
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/n36-boot
+          sudo mkdir -p /mnt/n36-iso
+          sudo mount -o loop,ro output/n36-kiosk-amd64.iso /mnt/n36-iso
+          cp "$(find /mnt/n36-iso/live -maxdepth 1 -name 'vmlinuz*' | head -n1)" /tmp/n36-boot/vmlinuz
+          cp "$(find /mnt/n36-iso/live -maxdepth 1 -name 'initrd.img*' | head -n1)" /tmp/n36-boot/initrd.img
+          sudo umount /mnt/n36-iso
+          base64 -d > /tmp/n36-boot/sample.png <<'PNG'
+          iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2n1cAAAAASUVORK5CYII=
+          PNG
+          truncate -s 16M /tmp/n36-boot/media.img
+          mkfs.vfat -n KIOSKMEDIA /tmp/n36-boot/media.img
+          mcopy -i /tmp/n36-boot/media.img /tmp/n36-boot/sample.png ::/sample.png
+          timeout 480 qemu-system-x86_64 \
+            -machine accel=tcg \
+            -m 2048 -smp 2 \
+            -device virtio-vga \
+            -device qemu-xhci,id=xhci \
+            -drive if=none,id=media,file=/tmp/n36-boot/media.img,format=raw \
+            -device usb-storage,bus=xhci.0,drive=media,removable=on \
+            -cdrom output/n36-kiosk-amd64.iso \
+            -kernel /tmp/n36-boot/vmlinuz \
+            -initrd /tmp/n36-boot/initrd.img \
+            -append 'boot=live components username=kiosk kiosk.selftest=1 console=ttyS0,115200n8' \
+            -display none -serial stdio -no-reboot | tee /tmp/n36-boot/qemu.log
+          grep -F 'KIOSK_SELFTEST_PASS' /tmp/n36-boot/qemu.log
       - name: Upload flashable ISO
         uses: actions/upload-artifact@v4
         with:

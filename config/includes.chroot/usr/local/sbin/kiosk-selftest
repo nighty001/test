@@ -1,0 +1,60 @@
+#!/bin/sh
+set -u
+exec 3>/dev/ttyS0
+
+ready=0
+for second in $(seq 1 240); do
+  if systemctl is-active --quiet kiosk.service \
+    && pgrep -x Xorg >/dev/null \
+    && pgrep -u kiosk -f '/usr/lib/chromium/chromium|/usr/lib/chromium/chromium-browser' >/dev/null \
+    && pgrep -u kiosk -f '/usr/local/bin/kiosk-media-monitor' >/dev/null \
+    && curl -fsS --max-time 2 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/view'; then
+    ready=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$ready" -eq 1 ]; then
+  media_ready=0
+  for second in $(seq 1 90); do
+    if pgrep -u kiosk -x mpv >/dev/null; then
+      media_ready=1
+      break
+    fi
+    sleep 1
+  done
+
+  if [ "$media_ready" -eq 1 ]; then
+    /usr/local/sbin/kiosk-power-button
+    switched=0
+    for second in $(seq 1 30); do
+      if [ "$(cat /run/kiosk-page 2>/dev/null)" = roundview ] \
+        && curl -fsS --max-time 2 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/roundview' \
+        && ! pgrep -u kiosk -x mpv >/dev/null; then
+        switched=1
+        break
+      fi
+      sleep 1
+    done
+    if [ "$switched" -eq 1 ]; then
+      echo 'KIOSK_SELFTEST_PASS' >&3
+      poweroff -f
+      exit 0
+    fi
+  fi
+fi
+
+echo 'KIOSK_SELFTEST_FAIL' >&3
+systemctl status kiosk.service --no-pager >&3 2>&1 || true
+journalctl -u kiosk.service -b --no-pager -n 100 >&3 2>&1 || true
+find /media/kiosk /run/media/kiosk -maxdepth 3 -type f -print >&3 2>&1 || true
+ps aux >&3 2>&1 || true
+for log in /home/kiosk/.local/share/xorg/Xorg.0.log /var/log/Xorg.0.log; do
+  if [ -r "$log" ]; then
+    echo "--- $log ---" >&3
+    tail -n 100 "$log" >&3
+  fi
+done
+poweroff -f
+exit 1
