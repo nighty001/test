@@ -18,6 +18,6 @@ Build on Debian 12/Ubuntu as root:
 The resulting hybrid ISO is written to `output/n36-kiosk-amd64.iso` and can be
 flashed with Rufus in DD mode or balenaEtcher.
 
-Installation deliberately erases the first internal non-USB disk. Keep only
-the intended internal eMMC/SSD and the installer USB connected.
-
+Installation deliberately erases the first internal non-USB SATA/NVMe disk.
+USB drives and removable card-reader media are excluded. Keep only the intended
+internal SSD and the installer USB connected.
