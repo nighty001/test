@@ -7,8 +7,12 @@ cp -a config .build/
 cd .build
 lb clean --purge || true
 lb config \
+  --mode debian \
   --architectures amd64 \
   --distribution bookworm \
+  --mirror-bootstrap http://deb.debian.org/debian \
+  --mirror-chroot http://deb.debian.org/debian \
+  --mirror-binary http://deb.debian.org/debian \
   --archive-areas "main contrib non-free-firmware" \
   --binary-image iso-hybrid \
   --debian-installer live \
@@ -19,4 +23,3 @@ lb config \
 lb build
 cp live-image-amd64.hybrid.iso ../output/n36-kiosk-amd64.iso
 sha256sum ../output/n36-kiosk-amd64.iso > ../output/n36-kiosk-amd64.iso.sha256
-
