@@ -16,4 +16,11 @@ sudo
 curl
 ca-certificates
 fonts-dejavu-core
-
+mpv
+python3
+python3-websockets
+python3-pil
+udisks2
+udiskie
+ntfs-3g
+exfatprogs

@@ -1,0 +1,113 @@
+#!/usr/bin/python3
+import asyncio
+import base64
+import hashlib
+import io
+import json
+import os
+import pathlib
+import signal
+import subprocess
+import time
+import urllib.request
+
+from PIL import Image, ImageChops, ImageStat
+import websockets
+
+IDLE_SECONDS = 300
+POLL_SECONDS = 5
+DIFFERENCE_THRESHOLD = 3.0
+MEDIA_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".heic", ".heif",
+    ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm", ".mpeg", ".mpg",
+}
+MEDIA_ROOTS = (pathlib.Path("/media/kiosk"), pathlib.Path("/run/media/kiosk"))
+
+
+def browser_socket():
+    with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=2) as response:
+        pages = json.load(response)
+    page = next(item for item in pages if item.get("type") == "page")
+    return page["webSocketDebuggerUrl"]
+
+
+async def capture_page():
+    async with websockets.connect(browser_socket(), max_size=8 * 1024 * 1024) as socket:
+        await socket.send(json.dumps({
+            "id": 1,
+            "method": "Page.captureScreenshot",
+            "params": {"format": "jpeg", "quality": 35, "captureBeyondViewport": False},
+        }))
+        while True:
+            reply = json.loads(await socket.recv())
+            if reply.get("id") == 1:
+                raw = base64.b64decode(reply["result"]["data"])
+                image = Image.open(io.BytesIO(raw)).convert("L").resize((64, 36))
+                return image
+
+
+def difference(first, second):
+    return ImageStat.Stat(ImageChops.difference(first, second)).mean[0]
+
+
+def media_files():
+    found = []
+    for root in MEDIA_ROOTS:
+        if not root.exists():
+            continue
+        for item in root.rglob("*"):
+            try:
+                if item.is_file() and item.suffix.lower() in MEDIA_EXTENSIONS:
+                    found.append(str(item))
+            except OSError:
+                pass
+    return sorted(found)
+
+
+def start_player(files):
+    playlist = pathlib.Path("/run/kiosk-media-playlist.txt")
+    playlist.write_text("".join(f"{name}\n" for name in files), encoding="utf-8")
+    return subprocess.Popen([
+        "mpv", "--fullscreen", "--no-border", "--ontop", "--really-quiet",
+        "--hwdec=auto-safe", "--image-display-duration=8", "--loop-playlist=inf",
+        "--shuffle", f"--playlist={playlist}",
+    ])
+
+
+def stop_player(player):
+    if player and player.poll() is None:
+        player.terminate()
+        try:
+            player.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            player.kill()
+
+
+async def main():
+    previous = None
+    last_change = time.monotonic()
+    player = None
+    while True:
+        try:
+            current = await capture_page()
+            if previous is None or difference(previous, current) >= DIFFERENCE_THRESHOLD:
+                last_change = time.monotonic()
+                stop_player(player)
+                player = None
+            previous = current
+        except Exception:
+            pass
+
+        files = media_files()
+        if not files:
+            stop_player(player)
+            player = None
+        elif time.monotonic() - last_change >= IDLE_SECONDS:
+            if player is None or player.poll() is not None:
+                player = start_player(files)
+
+        await asyncio.sleep(POLL_SECONDS)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

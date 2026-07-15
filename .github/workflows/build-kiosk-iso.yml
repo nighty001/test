@@ -33,6 +33,7 @@ jobs:
           chmod +x build.sh
           chmod +x config/hooks/live/0100-kiosk.hook.chroot
           chmod +x config/includes.chroot/usr/local/bin/kiosk-session
+          chmod +x config/includes.chroot/usr/local/bin/kiosk-media-monitor
           chmod +x config/includes.chroot/usr/local/sbin/kiosk-power-button
       - name: Build ISO
         run: sudo ./build.sh

@@ -6,11 +6,12 @@ xset s noblank
 xhost +SI:localuser:root
 unclutter -idle 0.3 -root &
 openbox-session &
+udiskie --automount --no-notify --no-tray &
 while ! ip route get 192.168.4.1 >/dev/null 2>&1; do sleep 1; done
 rm -rf /run/kiosk-chromium
 install -d -m 0700 /run/kiosk-chromium
 printf '%s\n' view > /run/kiosk-page
-exec chromium \
+chromium \
   --kiosk \
   --no-first-run \
   --disable-session-crashed-bubble \
@@ -19,6 +20,13 @@ exec chromium \
   --disable-features=Translate,MediaRouter,OptimizationHints \
   --disable-component-update \
   --disk-cache-size=1 \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
+  --disable-background-timer-throttling \
+  --disable-renderer-backgrounding \
   --user-data-dir=/run/kiosk-chromium \
   --start-fullscreen \
-  http://192.168.4.1/view
+  http://192.168.4.1/view &
+BROWSER_PID=$!
+/usr/local/bin/kiosk-media-monitor &
+wait "$BROWSER_PID"
