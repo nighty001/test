@@ -1,6 +1,11 @@
 #!/bin/sh
 set -u
-exec 3>/dev/ttyS0
+
+report() {
+  printf '<6>%s\n' "$*" > /dev/kmsg
+}
+
+report 'KIOSK_SELFTEST_START'
 
 ready=0
 for second in $(seq 1 240); do
@@ -19,6 +24,7 @@ for second in $(seq 1 240); do
 done
 
 if [ "$ready" -eq 1 ]; then
+  report 'KIOSK_SELFTEST_BROWSER_READY'
   media_ready=0
   for second in $(seq 1 90); do
     if pgrep -u kiosk -x mpv >/dev/null; then
@@ -29,6 +35,7 @@ if [ "$ready" -eq 1 ]; then
   done
 
   if [ "$media_ready" -eq 1 ]; then
+    report 'KIOSK_SELFTEST_MEDIA_READY'
     /usr/local/sbin/kiosk-power-button
     switched=0
     for second in $(seq 1 30); do
@@ -41,22 +48,30 @@ if [ "$ready" -eq 1 ]; then
       sleep 1
     done
     if [ "$switched" -eq 1 ]; then
-      echo 'KIOSK_SELFTEST_PASS' >&3
+      report 'KIOSK_SELFTEST_BUTTON_READY'
+      report 'KIOSK_SELFTEST_PASS'
       poweroff -f
       exit 0
     fi
   fi
 fi
 
-echo 'KIOSK_SELFTEST_FAIL' >&3
-systemctl status kiosk.service --no-pager >&3 2>&1 || true
-journalctl -u kiosk.service -b --no-pager -n 100 >&3 2>&1 || true
-find /media/kiosk /run/media/kiosk -maxdepth 3 -type f -print >&3 2>&1 || true
-ps aux >&3 2>&1 || true
+report "KIOSK_SELFTEST_FAIL browser=$ready media=${media_ready:-0} switched=${switched:-0}"
+for command in \
+  'systemctl status kiosk.service --no-pager' \
+  'journalctl -u kiosk.service -b --no-pager -n 100' \
+  'find /media/kiosk /run/media/kiosk -maxdepth 3 -type f -print' \
+  'ps aux'; do
+  sh -c "$command" 2>&1 | while IFS= read -r line; do
+    report "KIOSK_DIAG $line"
+  done
+done
 for log in /home/kiosk/.local/share/xorg/Xorg.0.log /var/log/Xorg.0.log; do
   if [ -r "$log" ]; then
-    echo "--- $log ---" >&3
-    tail -n 100 "$log" >&3
+    report "KIOSK_DIAG --- $log ---"
+    tail -n 100 "$log" | while IFS= read -r line; do
+      report "KIOSK_DIAG $line"
+    done
   fi
 done
 poweroff -f
