@@ -52,8 +52,10 @@ jobs:
           grep -Fx 'fonts-noto-color-emoji' config/package-lists/kiosk.list.chroot
           grep -Fx 'XKBLAYOUT="de"' config/includes.chroot/etc/default/keyboard
           grep -Fx 'IDLE_SECONDS = 10 if "kiosk.selftest=1" in CMDLINE else 240' config/includes.chroot/usr/local/bin/kiosk-media-monitor
+          grep -Fx 'STATUS_URL = "http://192.168.4.1/status"' config/includes.chroot/usr/local/bin/kiosk-media-monitor
           grep -F 'KIOSK_SELFTEST_MEDIA_DELAY_READY' config/includes.chroot/usr/local/sbin/kiosk-selftest
-          grep -F 'KIOSK_SELFTEST_PAGE_ACTIVITY_REVEALS_BROWSER' config/includes.chroot/usr/local/sbin/kiosk-selftest
+          grep -F 'KIOSK_SELFTEST_PAGE_CHANGE_IGNORED_READY' config/includes.chroot/usr/local/sbin/kiosk-selftest
+          grep -F 'KIOSK_SELFTEST_MEASUREMENT_REVEALS_BROWSER' config/includes.chroot/usr/local/sbin/kiosk-selftest
           grep -F 'KIOSK_SELFTEST_MEDIA_RESTART_READY' config/includes.chroot/usr/local/sbin/kiosk-selftest
       - name: Build ISO
         run: sudo ./build.sh

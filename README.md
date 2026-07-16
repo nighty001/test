@@ -5,6 +5,12 @@ MINISFORUM N36. The installed system starts Chromium in kiosk mode at
 `http://192.168.4.1/view` and toggles to/from `/roundview` when the ACPI power
 button is pressed.
 
+Removable USB images and videos are shown fullscreen after the ESP32
+`/status` endpoint has reported `running=false` for four minutes. A new
+measurement (`running=true`) immediately stops the media player and reveals
+the browser. This intentionally ignores clocks, animations, and other visual
+page changes that do not represent a measurement.
+
 The browser profile lives in `/run`, so every boot starts with exactly one
 fresh tab. systemd-logind shutdown/suspend handling for the power key is
 disabled; a long hardware press can still force power-off.

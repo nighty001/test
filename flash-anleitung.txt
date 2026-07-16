@@ -1,16 +1,22 @@
 N36-KIOSK – FLASH- UND INSTALLATIONSANLEITUNG
 
-ACHTUNG: Die automatische Installation löscht die interne eMMC vollständig.
-Vorher alle benötigten Daten sichern und andere USB-Datenträger abziehen.
+ACHTUNG: Die automatische Installation löscht das ausgewählte interne
+Laufwerk vollständig. Vorher alle benötigten Daten sichern und andere interne
+Datenträger abziehen, falls sie nicht gelöscht werden dürfen.
 
 1. n36-kiosk-amd64.iso mit Rufus (DD-Modus) oder balenaEtcher auf einen
    USB-Stick schreiben.
-2. Nur USB-Stick, HDMI, Strom und optional eine USB-Tastatur anschließen.
+2. Nur Installationsstick, HDMI, Strom und optional eine USB-Tastatur
+   anschließen.
 3. N36 einschalten und mit F7/F11/Entf das Bootmenü öffnen.
-4. Den UEFI-USB-Stick starten und „Install“ auswählen.
-5. Nach Abschluss den USB-Stick entfernen und neu starten.
+4. Den UEFI-USB-Stick starten und „Start installer“ auswählen.
+5. Nach Abschluss den Installationsstick entfernen und neu starten.
 
-Das Gerät verbindet sich mit „esp32“ und öffnet /view. Ein kurzer Druck auf
+Das Gerät verbindet sich mit „ESP32“ und öffnet /view. Ein kurzer Druck auf
 den PC-Powertaster schaltet zwischen /view und /roundview um. Es wird dabei
 nicht heruntergefahren. Ein langes Halten kann weiterhin hardwareseitig
 ausschalten.
+
+Bilder und Videos auf einem zusätzlichen USB-Datenträger starten vier Minuten
+nach Ende einer Messung. Sobald /status wieder running=true meldet, wird der
+Browser sofort sichtbar.

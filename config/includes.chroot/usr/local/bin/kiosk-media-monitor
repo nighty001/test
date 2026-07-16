@@ -1,25 +1,16 @@
 #!/usr/bin/python3
 import asyncio
-import base64
 import hashlib
-import io
 import json
-import os
 import pathlib
-import signal
 import subprocess
 import time
 import urllib.request
 
-from PIL import Image, ImageChops
-import websockets
-
 CMDLINE = pathlib.Path("/proc/cmdline").read_text(encoding="utf-8", errors="ignore")
 IDLE_SECONDS = 10 if "kiosk.selftest=1" in CMDLINE else 240
 POLL_SECONDS = 2
-SCREENSHOT_SIZE = (160, 90)
-PIXEL_CHANGE_THRESHOLD = 4
-MIN_CHANGED_PIXELS = 3
+STATUS_URL = "http://192.168.4.1/status"
 MEDIA_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".heic", ".heif",
     ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm", ".mpeg", ".mpg",
@@ -30,52 +21,24 @@ RUNTIME_DIR = pathlib.Path("/run/kiosk-chromium")
 HEIF_CACHE = RUNTIME_DIR / "heif"
 FORCE_BROWSER = RUNTIME_DIR / "force-browser"
 MEDIA_IDLE_FILE = RUNTIME_DIR / "media-idle-seconds"
+MEASUREMENT_FILE = RUNTIME_DIR / "measurement-running"
+MEDIA_COUNT_FILE = RUNTIME_DIR / "media-count"
+IDLE_ELAPSED_FILE = RUNTIME_DIR / "media-idle-elapsed"
 
 
-def browser_socket():
-    with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=2) as response:
-        pages = json.load(response)
-    page = next(item for item in pages if item.get("type") == "page")
-    return page["webSocketDebuggerUrl"]
-
-
-async def capture_page():
-    async with websockets.connect(browser_socket(), max_size=8 * 1024 * 1024) as socket:
-        await socket.send(json.dumps({
-            "id": 1,
-            "method": "Runtime.evaluate",
-            "params": {
-                "expression": "document.body ? document.body.innerText : ''",
-                "returnByValue": True,
-            },
-        }))
-        while True:
-            reply = json.loads(await socket.recv())
-            if reply.get("id") == 1:
-                body_text = reply.get("result", {}).get("result", {}).get("value", "")
-                break
-
-        await socket.send(json.dumps({
-            "id": 2,
-            "method": "Page.captureScreenshot",
-            "params": {"format": "png", "captureBeyondViewport": False},
-        }))
-        while True:
-            reply = json.loads(await socket.recv())
-            if reply.get("id") == 2:
-                raw = base64.b64decode(reply["result"]["data"])
-                image = Image.open(io.BytesIO(raw)).convert("L").resize(SCREENSHOT_SIZE)
-                return body_text, image
-
-
-def page_changed(first, second):
-    first_text, first_image = first
-    second_text, second_image = second
-    if first_text != second_text:
+def measurement_running():
+    request = urllib.request.Request(
+        STATUS_URL,
+        headers={"Accept": "application/json", "Cache-Control": "no-cache"},
+    )
+    with urllib.request.urlopen(request, timeout=2) as response:
+        status = json.load(response)
+    value = status.get("running")
+    if value is True or value == 1 or value == "1" or value == "true":
         return True
-    histogram = ImageChops.difference(first_image, second_image).histogram()
-    changed_pixels = sum(histogram[PIXEL_CHANGE_THRESHOLD + 1:])
-    return changed_pixels >= MIN_CHANGED_PIXELS
+    if value is False or value == 0 or value == "0" or value == "false":
+        return False
+    return None
 
 
 def converted_heif(item):
@@ -148,8 +111,8 @@ def stop_player(player):
 
 
 async def main():
-    previous = None
     previous_media = None
+    previous_running = None
     last_change = time.monotonic()
     last_force = None
     player = None
@@ -165,16 +128,26 @@ async def main():
             player = None
 
         try:
-            current = await capture_page()
-            if previous is None or page_changed(previous, current):
-                last_change = time.monotonic()
-                stop_player(player)
-                player = None
-            previous = current
+            running = measurement_running()
         except Exception:
-            pass
+            running = None
+        MEASUREMENT_FILE.write_text(
+            "unknown\n" if running is None else ("1\n" if running else "0\n"),
+            encoding="utf-8",
+        )
+        if running is True:
+            last_change = time.monotonic()
+            stop_player(player)
+            player = None
+        elif running is False and previous_running is not False:
+            # Start the full idle period when a measurement has just stopped
+            # or when the ESP32 status becomes available for the first time.
+            last_change = time.monotonic()
+        if running is not None:
+            previous_running = running
 
         files = media_files()
+        MEDIA_COUNT_FILE.write_text(f"{len(files)}\n", encoding="utf-8")
         current_media = media_signature(files)
         if current_media != previous_media:
             previous_media = current_media
@@ -182,6 +155,8 @@ async def main():
             stop_player(player)
             player = None
 
+        idle_elapsed = max(0, int(time.monotonic() - last_change))
+        IDLE_ELAPSED_FILE.write_text(f"{idle_elapsed}\n", encoding="utf-8")
         if not files:
             stop_player(player)
             player = None
