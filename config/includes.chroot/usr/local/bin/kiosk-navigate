@@ -1,10 +1,13 @@
 #!/usr/bin/python3
 import asyncio
 import json
+import pathlib
 import sys
 import urllib.request
 
 import websockets
+
+CURRENT_URL = pathlib.Path("/run/kiosk-chromium/current-url")
 
 
 async def command(socket, command_id, method, params=None):
@@ -41,6 +44,7 @@ async def navigate(url):
             })
             current = result.get("result", {}).get("value")
             if current == url:
+                CURRENT_URL.write_text(f"{url}\n", encoding="utf-8")
                 return
         raise RuntimeError("navigation did not commit")
 

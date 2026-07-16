@@ -71,7 +71,7 @@ if [ "$ready" -eq 1 ]; then
     switched=0
     for second in $(seq 1 30); do
       if [ "$(cat /run/kiosk-page 2>/dev/null)" = roundview ] \
-        && curl -fsS --max-time 2 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/roundview' \
+        && [ "$(cat /run/kiosk-chromium/current-url 2>/dev/null)" = 'http://192.168.4.1/roundview' ] \
         && ! mpv_is_running; then
         switched=1
         break
@@ -88,6 +88,7 @@ if [ "$ready" -eq 1 ]; then
 fi
 
 report "KIOSK_SELFTEST_FAIL browser=$ready media=${media_ready:-0} switched=${switched:-0}"
+report "KIOSK_DIAG STATE=$(cat /run/kiosk-page 2>/dev/null || true) CURRENT_URL=$(cat /run/kiosk-chromium/current-url 2>/dev/null || true)"
 curl -fsS --max-time 2 http://127.0.0.1:9222/json 2>&1 | while IFS= read -r line; do
   report "KIOSK_DIAG CDP $line"
 done
