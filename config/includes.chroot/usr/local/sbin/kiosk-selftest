@@ -9,12 +9,7 @@ report 'KIOSK_SELFTEST_START'
 
 # Provide a deterministic local stand-in for the ESP32 during the VM test.
 ip address add 192.168.4.1/32 dev lo 2>/dev/null || true
-install -d -m 0755 /run/kiosk-selftest-web
-printf '%s\n' '<!doctype html><html><body style="background:#000;color:#fff;font-size:96px">VIEW</body></html>' \
-  > /run/kiosk-selftest-web/view
-printf '%s\n' '<!doctype html><html><body style="background:#fff;color:#000;font-size:96px">ROUNDVIEW</body></html>' \
-  > /run/kiosk-selftest-web/roundview
-python3 -m http.server 80 --bind 192.168.4.1 --directory /run/kiosk-selftest-web \
+/usr/local/sbin/kiosk-selftest-server \
   >/run/kiosk-selftest-http.log 2>&1 &
 
 mpv_is_running() {
