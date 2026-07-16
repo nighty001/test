@@ -7,14 +7,27 @@ report() {
 
 report 'KIOSK_SELFTEST_START'
 
+# Provide a deterministic local stand-in for the ESP32 during the VM test.
+ip address add 192.168.4.1/32 dev lo 2>/dev/null || true
+install -d -m 0755 /run/kiosk-selftest-web
+printf '%s\n' '<!doctype html><html><body style="background:#000;color:#fff;font-size:96px">VIEW</body></html>' \
+  > /run/kiosk-selftest-web/view
+printf '%s\n' '<!doctype html><html><body style="background:#fff;color:#000;font-size:96px">ROUNDVIEW</body></html>' \
+  > /run/kiosk-selftest-web/roundview
+python3 -m http.server 80 --bind 192.168.4.1 --directory /run/kiosk-selftest-web \
+  >/dev/null 2>&1 &
+
+mpv_is_running() {
+  ps -C mpv -o stat= 2>/dev/null | grep -qv '^[[:space:]]*Z'
+}
+
 ready=0
 for second in $(seq 1 120); do
   if systemctl is-active --quiet kiosk.service \
     && pgrep -x Xorg >/dev/null \
     && pgrep -u kiosk -f '/usr/lib/chromium/chromium|/usr/lib/chromium/chromium-browser' >/dev/null \
     && pgrep -u kiosk -f '/usr/local/bin/kiosk-media-monitor' >/dev/null \
-    && pgrep -u kiosk -af chromium | grep -Fq 'http://192.168.4.1/view' \
-    && curl -fsS --max-time 1 http://127.0.0.1:9222/json/version >/dev/null; then
+    && curl -fsS --max-time 1 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/view'; then
     ready=1
     break
   fi
@@ -36,7 +49,7 @@ if [ "$ready" -eq 1 ]; then
   report 'KIOSK_SELFTEST_BROWSER_READY'
   media_ready=0
   for second in $(seq 1 90); do
-    if pgrep -u kiosk -x mpv >/dev/null; then
+    if mpv_is_running; then
       media_ready=1
       break
     fi
@@ -50,7 +63,7 @@ if [ "$ready" -eq 1 ]; then
     for second in $(seq 1 30); do
       if [ "$(cat /run/kiosk-page 2>/dev/null)" = roundview ] \
         && curl -fsS --max-time 2 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/roundview' \
-        && ! pgrep -u kiosk -x mpv >/dev/null; then
+        && ! mpv_is_running; then
         switched=1
         break
       fi
