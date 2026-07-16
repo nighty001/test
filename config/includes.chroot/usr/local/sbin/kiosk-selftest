@@ -7,6 +7,14 @@ report() {
 
 report 'KIOSK_SELFTEST_START'
 
+emoji_ready=0
+if [ -r /usr/share/fonts/truetype/noto/NotoColorEmoji.ttf ]; then
+  emoji_ready=1
+  report 'KIOSK_SELFTEST_EMOJI_FONT_READY'
+else
+  report 'KIOSK_SELFTEST_EMOJI_FONT_FAIL'
+fi
+
 # Provide a deterministic local stand-in for the ESP32 during the VM test.
 ip address add 192.168.4.1/32 dev lo 2>/dev/null || true
 /usr/local/sbin/kiosk-selftest-server \
@@ -40,7 +48,7 @@ for second in $(seq 1 120); do
   sleep 1
 done
 
-if [ "$ready" -eq 1 ]; then
+if [ "$ready" -eq 1 ] && [ "$emoji_ready" -eq 1 ]; then
   report 'KIOSK_SELFTEST_BROWSER_READY'
   if curl -fsS --max-time 2 http://192.168.4.1/roundview >/dev/null; then
     report 'KIOSK_SELFTEST_ROUNDVIEW_HTTP_READY'
@@ -58,10 +66,18 @@ if [ "$ready" -eq 1 ]; then
 
   if [ "$media_ready" -eq 1 ]; then
     report 'KIOSK_SELFTEST_MEDIA_READY'
+    button_command=0
     if /usr/local/sbin/kiosk-power-button; then
+      button_command=1
       report 'KIOSK_SELFTEST_BUTTON_COMMAND_OK'
     else
       report 'KIOSK_SELFTEST_BUTTON_COMMAND_FAIL'
+    fi
+    debounced=0
+    if [ "$button_command" -eq 1 ] && /usr/local/sbin/kiosk-power-button \
+      && [ "$(cat /run/kiosk-page 2>/dev/null)" = roundview ]; then
+      debounced=1
+      report 'KIOSK_SELFTEST_BUTTON_DEBOUNCE_READY'
     fi
     switched=0
     for second in $(seq 1 30); do
@@ -73,16 +89,35 @@ if [ "$ready" -eq 1 ]; then
       fi
       sleep 1
     done
-    if [ "$switched" -eq 1 ]; then
+    if [ "$switched" -eq 1 ] && [ "$debounced" -eq 1 ]; then
       report 'KIOSK_SELFTEST_BUTTON_READY'
-      report 'KIOSK_SELFTEST_PASS'
-      poweroff -f
-      exit 0
+      sleep 3
+      if /usr/local/sbin/kiosk-power-button; then
+        report 'KIOSK_SELFTEST_BUTTON_TOGGLE_COMMAND_OK'
+      else
+        report 'KIOSK_SELFTEST_BUTTON_TOGGLE_COMMAND_FAIL'
+      fi
+      toggled=0
+      for second in $(seq 1 30); do
+        if [ "$(cat /run/kiosk-page 2>/dev/null)" = view ] \
+          && [ "$(cat /run/kiosk-chromium/current-url 2>/dev/null)" = 'http://192.168.4.1/view' ] \
+          && ! mpv_is_running; then
+          toggled=1
+          break
+        fi
+        sleep 1
+      done
+      if [ "$toggled" -eq 1 ]; then
+        report 'KIOSK_SELFTEST_BUTTON_TOGGLE_READY'
+        report 'KIOSK_SELFTEST_PASS'
+        poweroff -f
+        exit 0
+      fi
     fi
   fi
 fi
 
-report "KIOSK_SELFTEST_FAIL browser=$ready media=${media_ready:-0} switched=${switched:-0}"
+report "KIOSK_SELFTEST_FAIL browser=$ready emoji=$emoji_ready media=${media_ready:-0} debounced=${debounced:-0} switched=${switched:-0} toggled=${toggled:-0}"
 report "KIOSK_DIAG STATE=$(cat /run/kiosk-page 2>/dev/null || true) CURRENT_URL=$(cat /run/kiosk-chromium/current-url 2>/dev/null || true)"
 curl -fsS --max-time 2 http://127.0.0.1:9222/json 2>&1 | while IFS= read -r line; do
   report "KIOSK_DIAG CDP $line"

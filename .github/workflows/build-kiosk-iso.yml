@@ -48,6 +48,9 @@ jobs:
           python3 -m py_compile config/includes.chroot/usr/local/bin/kiosk-navigate
           python3 -m py_compile config/includes.chroot/usr/local/bin/kiosk-media-monitor
           python3 -m py_compile config/includes.chroot/usr/local/sbin/kiosk-selftest-server
+          grep -Fx 'ssid=ESP32' config/includes.chroot/etc/NetworkManager/system-connections/esp32.nmconnection
+          grep -Fx 'fonts-noto-color-emoji' config/package-lists/kiosk.list.chroot
+          grep -Fx 'XKBLAYOUT="de"' config/includes.chroot/etc/default/keyboard
       - name: Build ISO
         run: sudo ./build.sh
       - name: Boot-test Xorg and Chromium

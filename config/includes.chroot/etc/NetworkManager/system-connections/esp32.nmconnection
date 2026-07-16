@@ -1,5 +1,5 @@
 [connection]
-id=esp32
+id=ESP32
 type=wifi
 autoconnect=true
 autoconnect-priority=100
@@ -7,7 +7,7 @@ autoconnect-retries=0
 
 [wifi]
 mode=infrastructure
-ssid=esp32
+ssid=ESP32
 
 [wifi-security]
 key-mgmt=wpa-psk

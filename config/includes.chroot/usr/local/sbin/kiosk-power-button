@@ -1,6 +1,22 @@
 #!/bin/sh
 set -eu
 STATE=/run/kiosk-page
+LOCK=/run/kiosk-power-button.lock
+STAMP=/run/kiosk-power-button.last
+
+exec 9>"$LOCK"
+flock -n 9 || exit 0
+
+NOW=$(cut -d. -f1 /proc/uptime)
+LAST=$(cat "$STAMP" 2>/dev/null || true)
+case "$LAST" in
+  ''|*[!0-9]*) LAST=0 ;;
+esac
+if [ $((NOW - LAST)) -lt 2 ]; then
+  exit 0
+fi
+trap 'cut -d. -f1 /proc/uptime > "$STAMP"' EXIT
+
 URL=http://192.168.4.1/roundview
 if [ "$(cat "$STATE" 2>/dev/null || true)" = roundview ]; then
   URL=http://192.168.4.1/view

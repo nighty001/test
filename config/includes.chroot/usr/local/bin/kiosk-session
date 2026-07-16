@@ -6,6 +6,7 @@ fi
 xset -dpms
 xset s off
 xset s noblank
+setxkbmap de
 xhost +SI:localuser:root +SI:localuser:kiosk
 unclutter -idle 0.3 -root &
 openbox-session &
