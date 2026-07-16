@@ -80,6 +80,9 @@ if [ "$ready" -eq 1 ] && [ "$emoji_ready" -eq 1 ]; then
 
     activity_ready=0
     restart_ready=0
+    if [ "$media_delay_ready" -eq 1 ]; then
+      printf '%s\n' roundview > /run/kiosk-page
+    fi
     if [ "$media_delay_ready" -eq 1 ] \
       && /usr/local/bin/kiosk-navigate http://192.168.4.1/roundview; then
       for second in $(seq 1 15); do
@@ -90,6 +93,9 @@ if [ "$ready" -eq 1 ] && [ "$emoji_ready" -eq 1 ]; then
         fi
         sleep 1
       done
+    fi
+    if [ "$activity_ready" -eq 1 ]; then
+      printf '%s\n' view > /run/kiosk-page
     fi
     if [ "$activity_ready" -eq 1 ] \
       && /usr/local/bin/kiosk-navigate http://192.168.4.1/view; then
