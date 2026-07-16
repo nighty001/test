@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlsplit
 
 
 PAGES = {
-    "/view": b'<!doctype html><html><body style="background:#000;color:#fff;font-size:96px">VIEW &#x1F600;</body></html>',
+    "/view": b'''<!doctype html><html><body style="background:#000;color:#fff;font-size:96px">VIEW &#x1F600; <span id="tick">0</span><script>let n=0;setInterval(()=>document.getElementById("tick").textContent=++n,100);</script></body></html>''',
     "/roundview": b'<!doctype html><html><body style="background:#fff;color:#000;font-size:96px">ROUNDVIEW</body></html>',
 }
 
