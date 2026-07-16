@@ -27,7 +27,7 @@ for second in $(seq 1 120); do
     && pgrep -x Xorg >/dev/null \
     && pgrep -u kiosk -f '/usr/lib/chromium/chromium|/usr/lib/chromium/chromium-browser' >/dev/null \
     && pgrep -u kiosk -f '/usr/local/bin/kiosk-media-monitor' >/dev/null \
-    && curl -fsS --max-time 1 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/view'; then
+    && [ "$(cat /run/kiosk-chromium/current-url 2>/dev/null)" = 'http://192.168.4.1/view' ]; then
     ready=1
     break
   fi

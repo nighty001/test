@@ -35,15 +35,29 @@ chromium \
   http://192.168.4.1/view &
 BROWSER_PID=$!
 
-# Chromium does not always retry an initial network error. Reload exactly once
+# Chromium does not always retain an initial failed URL. Navigate explicitly
 # when the ESP32 becomes reachable after startup or after a disconnect.
 (
   ONLINE=0
   while sleep 5; do
     if curl -fsS --max-time 2 http://192.168.4.1/view >/dev/null 2>&1; then
-      if [ "$ONLINE" -eq 0 ]; then
-        xdotool search --onlyvisible --class 'chromium' windowactivate --sync \
-          key --clearmodifiers ctrl+r >/dev/null 2>&1 || true
+      TARGET=http://192.168.4.1/view
+      if [ "$(cat /run/kiosk-page 2>/dev/null || true)" = roundview ]; then
+        TARGET=http://192.168.4.1/roundview
+      fi
+      CURRENT=$(cat /run/kiosk-chromium/current-url 2>/dev/null || true)
+      if [ "$ONLINE" -eq 0 ] || [ "$CURRENT" != "$TARGET" ]; then
+        touch /run/kiosk-chromium/force-browser 2>/dev/null || true
+        pkill -x mpv 2>/dev/null || true
+        if ! /usr/local/bin/kiosk-navigate "$TARGET" >/dev/null 2>&1; then
+          WINDOW=$(xdotool search --onlyvisible --class 'chromium' 2>/dev/null | tail -n 1 || true)
+          if [ -n "$WINDOW" ]; then
+            xdotool windowactivate --sync "$WINDOW" >/dev/null 2>&1 || true
+            xdotool key --window "$WINDOW" --clearmodifiers ctrl+l >/dev/null 2>&1 || true
+            xdotool type --window "$WINDOW" --delay 1 "$TARGET" >/dev/null 2>&1 || true
+            xdotool key --window "$WINDOW" Return >/dev/null 2>&1 || true
+          fi
+        fi
       fi
       ONLINE=1
     else
