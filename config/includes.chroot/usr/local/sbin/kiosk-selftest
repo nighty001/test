@@ -58,7 +58,11 @@ if [ "$ready" -eq 1 ]; then
 
   if [ "$media_ready" -eq 1 ]; then
     report 'KIOSK_SELFTEST_MEDIA_READY'
-    /usr/local/sbin/kiosk-power-button
+    if /usr/local/sbin/kiosk-power-button; then
+      report 'KIOSK_SELFTEST_BUTTON_COMMAND_OK'
+    else
+      report 'KIOSK_SELFTEST_BUTTON_COMMAND_FAIL'
+    fi
     switched=0
     for second in $(seq 1 30); do
       if [ "$(cat /run/kiosk-page 2>/dev/null)" = roundview ] \

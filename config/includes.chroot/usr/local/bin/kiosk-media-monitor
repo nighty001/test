@@ -26,6 +26,7 @@ MEDIA_ROOTS = (pathlib.Path("/media/kiosk"), pathlib.Path("/run/media/kiosk"))
 HEIF_EXTENSIONS = {".heic", ".heif"}
 RUNTIME_DIR = pathlib.Path("/run/kiosk-chromium")
 HEIF_CACHE = RUNTIME_DIR / "heif"
+FORCE_BROWSER = RUNTIME_DIR / "force-browser"
 
 
 def browser_socket():
@@ -115,8 +116,19 @@ def stop_player(player):
 async def main():
     previous = None
     last_change = time.monotonic()
+    last_force = None
     player = None
     while True:
+        try:
+            current_force = FORCE_BROWSER.stat().st_mtime_ns
+        except OSError:
+            current_force = 0
+        if current_force != last_force:
+            last_force = current_force
+            last_change = time.monotonic()
+            stop_player(player)
+            player = None
+
         try:
             current = await capture_page()
             if previous is None or difference(previous, current) >= DIFFERENCE_THRESHOLD:

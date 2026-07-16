@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+import asyncio
+import json
+import sys
+import urllib.request
+
+import websockets
+
+
+async def navigate(url):
+    with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=3) as response:
+        targets = json.load(response)
+    page = next(target for target in targets if target.get("type") == "page")
+
+    async with websockets.connect(page["webSocketDebuggerUrl"], max_size=1024 * 1024) as socket:
+        await socket.send(json.dumps({
+            "id": 1,
+            "method": "Page.navigate",
+            "params": {"url": url},
+        }))
+        while True:
+            reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=5))
+            if reply.get("id") != 1:
+                continue
+            if "error" in reply:
+                raise RuntimeError(reply["error"])
+            error_text = reply.get("result", {}).get("errorText")
+            if error_text:
+                raise RuntimeError(error_text)
+            return
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2 or not sys.argv[1].startswith("http://192.168.4.1/"):
+        raise SystemExit(2)
+    asyncio.run(navigate(sys.argv[1]))

@@ -8,5 +8,14 @@ if [ "$(cat "$STATE" 2>/dev/null || true)" = roundview ]; then
 else
   printf '%s\n' roundview > "$STATE"
 fi
+
+# Reveal the browser immediately and navigate its existing tab directly. The
+# keyboard fallback is retained for the unlikely case that Chromium's local
+# debugging endpoint is temporarily unavailable.
+touch /run/kiosk-chromium/force-browser 2>/dev/null || true
+pkill -u kiosk -x mpv 2>/dev/null || true
+if /usr/local/bin/kiosk-navigate "$URL"; then
+  exit 0
+fi
 env DISPLAY=:0 xdotool search --onlyvisible --class 'chromium' windowactivate --sync \
   key --clearmodifiers ctrl+l type --delay 1 "$URL" key Return
