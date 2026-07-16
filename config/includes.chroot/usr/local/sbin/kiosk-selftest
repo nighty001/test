@@ -15,7 +15,7 @@ printf '%s\n' '<!doctype html><html><body style="background:#000;color:#fff;font
 printf '%s\n' '<!doctype html><html><body style="background:#fff;color:#000;font-size:96px">ROUNDVIEW</body></html>' \
   > /run/kiosk-selftest-web/roundview
 python3 -m http.server 80 --bind 192.168.4.1 --directory /run/kiosk-selftest-web \
-  >/dev/null 2>&1 &
+  >/run/kiosk-selftest-http.log 2>&1 &
 
 mpv_is_running() {
   ps -C mpv -o stat= 2>/dev/null | grep -qv '^[[:space:]]*Z'
@@ -47,6 +47,11 @@ done
 
 if [ "$ready" -eq 1 ]; then
   report 'KIOSK_SELFTEST_BROWSER_READY'
+  if curl -fsS --max-time 2 http://192.168.4.1/roundview >/dev/null; then
+    report 'KIOSK_SELFTEST_ROUNDVIEW_HTTP_READY'
+  else
+    report 'KIOSK_SELFTEST_ROUNDVIEW_HTTP_FAIL'
+  fi
   media_ready=0
   for second in $(seq 1 90); do
     if mpv_is_running; then
@@ -103,5 +108,10 @@ for log in /home/kiosk/.local/share/xorg/Xorg.0.log /var/log/Xorg.0.log; do
     done
   fi
 done
+if [ -r /run/kiosk-selftest-http.log ]; then
+  while IFS= read -r line; do
+    report "KIOSK_DIAG HTTP $line"
+  done < /run/kiosk-selftest-http.log
+fi
 poweroff -f
 exit 1

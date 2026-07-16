@@ -17,5 +17,10 @@ pkill -u kiosk -x mpv 2>/dev/null || true
 if /usr/local/bin/kiosk-navigate "$URL"; then
   exit 0
 fi
-env DISPLAY=:0 xdotool search --onlyvisible --class 'chromium' windowactivate --sync \
-  key --clearmodifiers ctrl+l type --delay 1 "$URL" key Return
+export DISPLAY=:0
+WINDOW=$(xdotool search --onlyvisible --class 'chromium' 2>/dev/null | tail -n 1)
+[ -n "$WINDOW" ]
+xdotool windowactivate --sync "$WINDOW"
+xdotool key --window "$WINDOW" --clearmodifiers ctrl+l
+xdotool type --window "$WINDOW" --delay 1 "$URL"
+xdotool key --window "$WINDOW" Return

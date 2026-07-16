@@ -7,27 +7,42 @@ import urllib.request
 import websockets
 
 
+async def command(socket, command_id, method, params=None):
+    request = {"id": command_id, "method": method}
+    if params is not None:
+        request["params"] = params
+    await socket.send(json.dumps(request))
+    while True:
+        reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=5))
+        if reply.get("id") != command_id:
+            continue
+        if "error" in reply:
+            raise RuntimeError(reply["error"])
+        return reply.get("result", {})
+
+
 async def navigate(url):
     with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=3) as response:
         targets = json.load(response)
     page = next(target for target in targets if target.get("type") == "page")
 
     async with websockets.connect(page["webSocketDebuggerUrl"], max_size=1024 * 1024) as socket:
-        await socket.send(json.dumps({
-            "id": 1,
-            "method": "Page.navigate",
-            "params": {"url": url},
-        }))
-        while True:
-            reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=5))
-            if reply.get("id") != 1:
-                continue
-            if "error" in reply:
-                raise RuntimeError(reply["error"])
-            error_text = reply.get("result", {}).get("errorText")
-            if error_text:
-                raise RuntimeError(error_text)
-            return
+        result = await command(socket, 1, "Page.navigate", {"url": url})
+        if result.get("errorText"):
+            raise RuntimeError(result["errorText"])
+
+        # Keep the debugger attached until the provisional navigation has
+        # committed. This avoids an empty page on slow, low-power hardware.
+        for attempt in range(2, 42):
+            await asyncio.sleep(0.25)
+            result = await command(socket, attempt, "Runtime.evaluate", {
+                "expression": "window.location.href",
+                "returnByValue": True,
+            })
+            current = result.get("result", {}).get("value")
+            if current == url:
+                return
+        raise RuntimeError("navigation did not commit")
 
 
 if __name__ == "__main__":
