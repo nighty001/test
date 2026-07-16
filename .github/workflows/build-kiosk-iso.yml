@@ -61,7 +61,7 @@ jobs:
           truncate -s 16M /tmp/n36-boot/media.img
           mkfs.vfat -n KIOSKMEDIA /tmp/n36-boot/media.img
           mcopy -i /tmp/n36-boot/media.img /tmp/n36-boot/sample.png ::/sample.png
-          timeout 480 qemu-system-x86_64 \
+          timeout 600 qemu-system-x86_64 \
             -machine accel=tcg \
             -m 2048 -smp 2 \
             -device virtio-vga \

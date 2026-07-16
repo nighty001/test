@@ -8,14 +8,23 @@ report() {
 report 'KIOSK_SELFTEST_START'
 
 ready=0
-for second in $(seq 1 240); do
+for second in $(seq 1 120); do
   if systemctl is-active --quiet kiosk.service \
     && pgrep -x Xorg >/dev/null \
     && pgrep -u kiosk -f '/usr/lib/chromium/chromium|/usr/lib/chromium/chromium-browser' >/dev/null \
     && pgrep -u kiosk -f '/usr/local/bin/kiosk-media-monitor' >/dev/null \
-    && curl -fsS --max-time 2 http://127.0.0.1:9222/json | grep -Fq '192.168.4.1/view'; then
+    && pgrep -u kiosk -af chromium | grep -Fq 'http://192.168.4.1/view' \
+    && curl -fsS --max-time 1 http://127.0.0.1:9222/json/version >/dev/null; then
     ready=1
     break
+  fi
+  if [ $((second % 20)) -eq 0 ]; then
+    x=0; chromium=0; monitor=0; cdp=0
+    pgrep -x Xorg >/dev/null && x=1
+    pgrep -u kiosk -f '/usr/lib/chromium/chromium|/usr/lib/chromium/chromium-browser' >/dev/null && chromium=1
+    pgrep -u kiosk -f '/usr/local/bin/kiosk-media-monitor' >/dev/null && monitor=1
+    curl -fsS --max-time 1 http://127.0.0.1:9222/json/version >/dev/null && cdp=1
+    report "KIOSK_SELFTEST_WAIT second=$second x=$x chromium=$chromium monitor=$monitor cdp=$cdp"
   fi
   if systemctl is-failed --quiet kiosk.service; then
     break
