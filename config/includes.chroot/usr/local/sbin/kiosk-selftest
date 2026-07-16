@@ -66,8 +66,53 @@ if [ "$ready" -eq 1 ] && [ "$emoji_ready" -eq 1 ]; then
 
   if [ "$media_ready" -eq 1 ]; then
     report 'KIOSK_SELFTEST_MEDIA_READY'
+    media_delay=$(cat /run/kiosk-chromium/media-idle-seconds 2>/dev/null || true)
+    media_delay_ready=0
+    case "$media_delay" in
+      ''|*[!0-9]*) ;;
+      *)
+        if [ "$media_delay" -ge 10 ]; then
+          media_delay_ready=1
+          report "KIOSK_SELFTEST_MEDIA_DELAY_READY seconds=$media_delay"
+        fi
+        ;;
+    esac
+
+    activity_ready=0
+    restart_ready=0
+    if [ "$media_delay_ready" -eq 1 ] \
+      && /usr/local/bin/kiosk-navigate http://192.168.4.1/roundview; then
+      for second in $(seq 1 15); do
+        if ! mpv_is_running; then
+          activity_ready=1
+          report 'KIOSK_SELFTEST_PAGE_ACTIVITY_REVEALS_BROWSER'
+          break
+        fi
+        sleep 1
+      done
+    fi
+    if [ "$activity_ready" -eq 1 ] \
+      && /usr/local/bin/kiosk-navigate http://192.168.4.1/view; then
+      for second in $(seq 1 30); do
+        if mpv_is_running; then
+          restart_delay=$(cat /run/kiosk-chromium/media-idle-seconds 2>/dev/null || true)
+          case "$restart_delay" in
+            ''|*[!0-9]*) ;;
+            *)
+              if [ "$restart_delay" -ge 10 ]; then
+                restart_ready=1
+                report "KIOSK_SELFTEST_MEDIA_RESTART_READY seconds=$restart_delay"
+              fi
+              ;;
+          esac
+          break
+        fi
+        sleep 1
+      done
+    fi
+
     button_command=0
-    if /usr/local/sbin/kiosk-power-button; then
+    if [ "$restart_ready" -eq 1 ] && /usr/local/sbin/kiosk-power-button; then
       button_command=1
       report 'KIOSK_SELFTEST_BUTTON_COMMAND_OK'
     else
@@ -117,7 +162,7 @@ if [ "$ready" -eq 1 ] && [ "$emoji_ready" -eq 1 ]; then
   fi
 fi
 
-report "KIOSK_SELFTEST_FAIL browser=$ready emoji=$emoji_ready media=${media_ready:-0} debounced=${debounced:-0} switched=${switched:-0} toggled=${toggled:-0}"
+report "KIOSK_SELFTEST_FAIL browser=$ready emoji=$emoji_ready media=${media_ready:-0} delay=${media_delay_ready:-0} activity=${activity_ready:-0} restart=${restart_ready:-0} debounced=${debounced:-0} switched=${switched:-0} toggled=${toggled:-0}"
 report "KIOSK_DIAG STATE=$(cat /run/kiosk-page 2>/dev/null || true) CURRENT_URL=$(cat /run/kiosk-chromium/current-url 2>/dev/null || true)"
 curl -fsS --max-time 2 http://127.0.0.1:9222/json 2>&1 | while IFS= read -r line; do
   report "KIOSK_DIAG CDP $line"

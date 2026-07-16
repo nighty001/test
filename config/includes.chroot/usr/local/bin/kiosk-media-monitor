@@ -11,13 +11,15 @@ import subprocess
 import time
 import urllib.request
 
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops
 import websockets
 
 CMDLINE = pathlib.Path("/proc/cmdline").read_text(encoding="utf-8", errors="ignore")
-IDLE_SECONDS = 10 if "kiosk.selftest=1" in CMDLINE else 300
-POLL_SECONDS = 5
-DIFFERENCE_THRESHOLD = 3.0
+IDLE_SECONDS = 10 if "kiosk.selftest=1" in CMDLINE else 240
+POLL_SECONDS = 2
+SCREENSHOT_SIZE = (160, 90)
+PIXEL_CHANGE_THRESHOLD = 4
+MIN_CHANGED_PIXELS = 3
 MEDIA_EXTENSIONS = {
     ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".heic", ".heif",
     ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm", ".mpeg", ".mpg",
@@ -27,6 +29,7 @@ HEIF_EXTENSIONS = {".heic", ".heif"}
 RUNTIME_DIR = pathlib.Path("/run/kiosk-chromium")
 HEIF_CACHE = RUNTIME_DIR / "heif"
 FORCE_BROWSER = RUNTIME_DIR / "force-browser"
+MEDIA_IDLE_FILE = RUNTIME_DIR / "media-idle-seconds"
 
 
 def browser_socket():
@@ -40,19 +43,39 @@ async def capture_page():
     async with websockets.connect(browser_socket(), max_size=8 * 1024 * 1024) as socket:
         await socket.send(json.dumps({
             "id": 1,
-            "method": "Page.captureScreenshot",
-            "params": {"format": "jpeg", "quality": 35, "captureBeyondViewport": False},
+            "method": "Runtime.evaluate",
+            "params": {
+                "expression": "document.body ? document.body.innerText : ''",
+                "returnByValue": True,
+            },
         }))
         while True:
             reply = json.loads(await socket.recv())
             if reply.get("id") == 1:
+                body_text = reply.get("result", {}).get("result", {}).get("value", "")
+                break
+
+        await socket.send(json.dumps({
+            "id": 2,
+            "method": "Page.captureScreenshot",
+            "params": {"format": "png", "captureBeyondViewport": False},
+        }))
+        while True:
+            reply = json.loads(await socket.recv())
+            if reply.get("id") == 2:
                 raw = base64.b64decode(reply["result"]["data"])
-                image = Image.open(io.BytesIO(raw)).convert("L").resize((64, 36))
-                return image
+                image = Image.open(io.BytesIO(raw)).convert("L").resize(SCREENSHOT_SIZE)
+                return body_text, image
 
 
-def difference(first, second):
-    return ImageStat.Stat(ImageChops.difference(first, second)).mean[0]
+def page_changed(first, second):
+    first_text, first_image = first
+    second_text, second_image = second
+    if first_text != second_text:
+        return True
+    histogram = ImageChops.difference(first_image, second_image).histogram()
+    changed_pixels = sum(histogram[PIXEL_CHANGE_THRESHOLD + 1:])
+    return changed_pixels >= MIN_CHANGED_PIXELS
 
 
 def converted_heif(item):
@@ -94,6 +117,17 @@ def media_files():
     return sorted(found)
 
 
+def media_signature(files):
+    signature = []
+    for name in files:
+        try:
+            stat = pathlib.Path(name).stat()
+            signature.append((name, stat.st_size, stat.st_mtime_ns))
+        except OSError:
+            signature.append((name, 0, 0))
+    return tuple(signature)
+
+
 def start_player(files):
     playlist = RUNTIME_DIR / "media-playlist.txt"
     playlist.write_text("".join(f"{name}\n" for name in files), encoding="utf-8")
@@ -115,6 +149,7 @@ def stop_player(player):
 
 async def main():
     previous = None
+    previous_media = None
     last_change = time.monotonic()
     last_force = None
     player = None
@@ -131,7 +166,7 @@ async def main():
 
         try:
             current = await capture_page()
-            if previous is None or difference(previous, current) >= DIFFERENCE_THRESHOLD:
+            if previous is None or page_changed(previous, current):
                 last_change = time.monotonic()
                 stop_player(player)
                 player = None
@@ -140,11 +175,21 @@ async def main():
             pass
 
         files = media_files()
+        current_media = media_signature(files)
+        if current_media != previous_media:
+            previous_media = current_media
+            last_change = time.monotonic()
+            stop_player(player)
+            player = None
+
         if not files:
             stop_player(player)
             player = None
         elif time.monotonic() - last_change >= IDLE_SECONDS:
             if player is None or player.poll() is not None:
+                MEDIA_IDLE_FILE.write_text(
+                    f"{int(time.monotonic() - last_change)}\n", encoding="utf-8"
+                )
                 player = start_player(files)
 
         await asyncio.sleep(POLL_SECONDS)
